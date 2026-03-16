@@ -152,3 +152,43 @@ func TestValidateRequiredHeaders_EmptyRequiredValue(t *testing.T) {
 		assert.Contains(t, err.Error.Message, "invalid required header value")
 	})
 }
+
+// TestValidateRequiredHeaders_EnvVar_Resolved verifies that an env.VAR_NAME reference in
+// the value part is resolved at request time.
+func TestValidateRequiredHeaders_EnvVar_Resolved(t *testing.T) {
+	t.Setenv("TEST_PROXY_TOKEN", "resolved-secret")
+
+	p := pluginWithHeaders([]string{"X-Proxy-Token=env.TEST_PROXY_TOKEN"})
+
+	t.Run("correct value passes", func(t *testing.T) {
+		ctx := makeCtxWithHeaders(map[string]string{"x-proxy-token": "resolved-secret"})
+		assert.Nil(t, p.validateRequiredHeaders(ctx))
+	})
+
+	t.Run("literal env ref string fails", func(t *testing.T) {
+		ctx := makeCtxWithHeaders(map[string]string{"x-proxy-token": "env.TEST_PROXY_TOKEN"})
+		err := p.validateRequiredHeaders(ctx)
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error.Message, "invalid required header value")
+		assert.Contains(t, err.Error.Message, "X-Proxy-Token")
+	})
+
+	t.Run("empty header value fails when env var resolves to non-empty", func(t *testing.T) {
+		ctx := makeCtxWithHeaders(map[string]string{"x-proxy-token": ""})
+		err := p.validateRequiredHeaders(ctx)
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error.Message, "invalid required header value")
+	})
+}
+
+// TestValidateRequiredHeaders_EnvVar_NotSet verifies that an unresolvable env.VAR_NAME reference
+// causes a 400 "invalid required header value" error (not a panic or missing-header error).
+func TestValidateRequiredHeaders_EnvVar_NotSet(t *testing.T) {
+	p := pluginWithHeaders([]string{"X-Proxy-Token=env.NONEXISTENT_VAR_XYZ_12345"})
+	ctx := makeCtxWithHeaders(map[string]string{"x-proxy-token": "anyval"})
+	err := p.validateRequiredHeaders(ctx)
+	require.NotNil(t, err)
+	assert.Equal(t, 400, *err.StatusCode)
+	assert.Contains(t, err.Error.Message, "invalid required header value")
+	assert.Contains(t, err.Error.Message, "X-Proxy-Token")
+}

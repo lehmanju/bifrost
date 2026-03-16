@@ -21,6 +21,7 @@ import (
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/configstore"
 	configstoreTables "github.com/maximhq/bifrost/framework/configstore/tables"
+	"github.com/maximhq/bifrost/framework/envutils"
 	"github.com/maximhq/bifrost/framework/mcpcatalog"
 	"github.com/maximhq/bifrost/framework/modelcatalog"
 )
@@ -883,13 +884,18 @@ func (p *GovernancePlugin) addMCPIncludeTools(headers map[string]string, virtual
 // and optionally validates their values.
 //
 // Each entry in the required headers list can be:
-//   - "Header-Name"          — header must be present (any value accepted)
-//   - "Header-Name=value"    — header must be present AND its value must exactly match "value"
-//   - "Header-Name="         — header must be present AND its value must be an empty string
+//   - "Header-Name"              — header must be present (any value accepted)
+//   - "Header-Name=value"        — header must be present AND its value must exactly match "value"
+//   - "Header-Name=env.VAR_NAME" — header must be present AND its value must match the resolved
+//     environment variable ENV_VAR_NAME
+//   - "Header-Name="             — header must be present AND its value must be an empty string
 //
 // Header name matching is case-insensitive. Header values are compared exactly as configured
 // (case-sensitive); an empty string after "=" is a valid constraint that requires the header
 // value to also be empty.
+// Environment variable references in values are resolved at request time via envutils.ProcessEnvValue.
+// If the referenced environment variable is not set, the check treats the value as unresolvable
+// and returns a 400 error.
 // Returns a BifrostError with status 400 if any required headers are missing or have an invalid
 // value, or nil if all checks pass.
 func (p *GovernancePlugin) validateRequiredHeaders(ctx *schemas.BifrostContext) *schemas.BifrostError {
@@ -903,14 +909,22 @@ func (p *GovernancePlugin) validateRequiredHeaders(ctx *schemas.BifrostContext) 
 	var missing []string
 	var invalid []string
 	for _, h := range *p.requiredHeaders {
-		name, requiredValue, hasValue := strings.Cut(h, "=")
+		name, rawRequiredValue, hasValue := strings.Cut(h, "=")
 		actual, ok := headers[strings.ToLower(name)]
 		if !ok {
 			missing = append(missing, name)
 			continue
 		}
-		if hasValue && actual != requiredValue {
-			invalid = append(invalid, name)
+		if hasValue {
+			requiredValue, err := envutils.ProcessEnvValue(rawRequiredValue)
+			if err != nil {
+				// Env var is referenced but not set — treat as invalid value
+				invalid = append(invalid, name)
+				continue
+			}
+			if actual != requiredValue {
+				invalid = append(invalid, name)
+			}
 		}
 	}
 	if len(missing) > 0 || len(invalid) > 0 {
