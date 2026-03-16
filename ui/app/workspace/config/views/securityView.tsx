@@ -347,14 +347,16 @@ export default function SecurityView() {
 							</label>
 							<p className="text-muted-foreground text-sm">
 								Comma-separated list of headers that must be present on every request. Requests missing any of these headers will be
-								rejected with a 400 error. Header names are case-insensitive.
+								rejected with a 400 error. Header names are case-insensitive. Use <b>Name=value</b> (e.g.{" "}
+								<code>X-Proxy-Token=secret</code>) to also validate the header value, or just the name (e.g. <code>X-Tenant-ID</code>)
+								to require presence only.
 							</p>
 						</div>
 						<Textarea
 							id="required-headers"
 							data-testid="required-headers-textarea"
 							className="h-24"
-							placeholder="X-Tenant-ID, X-Custom-Header"
+							placeholder="X-Tenant-ID, X-Proxy-Token=secret"
 							value={localValues.required_headers}
 							onChange={(e) => handleRequiredHeadersChange(e.target.value)}
 						/>

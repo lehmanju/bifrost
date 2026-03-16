@@ -130,7 +130,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Headers that must be present on every request. Requests missing any of these headers are rejected with 400. Case-insensitive matching."
+          "description": "Headers that must be present on every request. Requests missing any of these headers are rejected with 400. Case-insensitive name matching. Entries can be plain header names (e.g. \"X-Tenant-ID\") to require presence only, or \"Name=value\" (e.g. \"X-Proxy-Token=secret\") to also validate the header value."
         },
         "logging_headers": {
           "type": "array",
@@ -1066,7 +1066,7 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "List of headers that must be present in requests"
+                      "description": "Headers that must be present on every request. Entries can be plain header names (e.g. \"X-Tenant-ID\") to require presence only, or \"Name=value\" (e.g. \"X-Proxy-Token=secret\") to also validate the header value."
                     },
                     "is_enterprise": {
                       "type": "boolean",
